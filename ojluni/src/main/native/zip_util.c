@@ -142,7 +142,7 @@ ZFILE_Close(ZFILE zfd) {
 }
 
 static int
-ZFILE_read(ZFILE zfd, char *buf, jint nbytes, jlong offset) {
+ZFILE_read(ZFILE zfd, char *buf, jint nbytes) {
 #ifdef WIN32
     return (int) IO_Read(zfd, buf, nbytes);
 #else
@@ -154,7 +154,7 @@ ZFILE_read(ZFILE zfd, char *buf, jint nbytes, jlong offset) {
      * JVM_IO_INTR is tricky and could cause undesired side effect. So we decided
      * to simply call "read" on Solaris/Linux. See details in bug 6304463.
      */
-    return pread(zfd, buf, nbytes, offset);
+    return read(zfd, buf, nbytes);
 #endif
 }
 
@@ -183,11 +183,11 @@ InitializeZip()
 }
 
 /*
- * Reads len bytes of data from the specified offset into buf.
+ * Reads len bytes of data into buf.
  * Returns 0 if all bytes could be read, otherwise returns -1.
  */
 static int
-readFullyAt(ZFILE zfd, void *buf, jlong len, jlong offset) {
+readFully(ZFILE zfd, void *buf, jlong len) {
   char *bp = (char *) buf;
 
   while (len > 0) {
@@ -195,10 +195,9 @@ readFullyAt(ZFILE zfd, void *buf, jlong len, jlong offset) {
         jint count = (len < limit) ?
             (jint) len :
             (jint) limit;
-        jint n = ZFILE_read(zfd, bp, count, offset);
+        jint n = ZFILE_read(zfd, bp, count);
         if (n > 0) {
             bp += n;
-            offset += n;
             len -= n;
         } else if (n == JVM_IO_ERR && errno == EINTR) {
           /* Retry after EINTR (interrupted by signal).
@@ -211,6 +210,19 @@ readFullyAt(ZFILE zfd, void *buf, jlong len, jlong offset) {
     return 0;
 }
 
+/*
+ * Reads len bytes of data from the specified offset into buf.
+ * Returns 0 if all bytes could be read, otherwise returns -1.
+ */
+static int
+readFullyAt(ZFILE zfd, void *buf, jlong len, jlong offset)
+{
+    if (IO_Lseek(zfd, offset, SEEK_SET) == -1) {
+        return -1; /* lseek failure. */
+    }
+
+    return readFully(zfd, buf, len);
+}
 
 /*
  * Allocates a new zip file object for the specified file name.
@@ -865,17 +877,14 @@ ZIP_Put_In_Cache0(const char *name, ZFILE zfd, char **pmsg, jlong lastModified,
         return NULL;
     }
 
-    // Trivially, reuse errbuf.
-    if (readFullyAt(zfd, errbuf, 4, 0 /* offset */) != -1) {  // errors will be handled later
+    // Assumption, zfd refers to start of file. Trivially, reuse errbuf.
+    if (readFully(zfd, errbuf, 4) != -1) {  // errors will be handled later
         if (GETSIG(errbuf) == LOCSIG)
             zip->locsig = JNI_TRUE;
         else
             zip->locsig = JNI_FALSE;
     }
 
-    // This lseek is safe because it happens during construction of the ZipFile
-    // object. We must take care not to perform any operations that change the
-    // offset after (see b/30407219).
     len = zip->len = IO_Lseek(zfd, 0, SEEK_END);
     if (len <= 0) {
         if (len == 0) { /* zip file is empty */
@@ -975,7 +984,7 @@ readCENHeader(jzfile *zip, jlong cenpos, jint bufsize)
     censize = CENSIZE(cen);
     if (censize <= bufsize) return cen;
     if ((cen = realloc(cen, censize)) == NULL)              goto Catch;
-    if (readFullyAt(zfd, cen+bufsize, censize-bufsize, cenpos + bufsize) == -1) goto Catch;
+    if (readFully(zfd, cen+bufsize, censize-bufsize) == -1) goto Catch;
     return cen;
 
  Catch:

@@ -586,7 +586,6 @@ public final class URI
      *          by the above deviations
      */
     public URI(String str) throws URISyntaxException {
-        java.util.SeempLog.record_str(92, "s:"+str);
         new Parser(str).parse(false);
     }
 

@@ -2853,4 +2853,15 @@ public final class String
      *          guaranteed to be from a pool of unique strings.
      */
     public native String intern();
+
+    /**
+     * Zeroize the value of String
+     * @hide
+     */
+    public void clear() {
+        if (count <= 0)
+            return;
+        for (int i = 0; i < count; i++)
+            setCharAt(i, '\0');
+    }
 }

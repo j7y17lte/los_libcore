@@ -2246,9 +2246,13 @@ public class ObjectStreamClass implements Serializable {
             ObjectStreamField f = fields[i], m = null;
             for (int j = 0; j < localFields.length; j++) {
                 ObjectStreamField lf = localFields[j];
-                // Android-changed: We can have fields with a same name and a different type.
-                if (f.getName().equals(lf.getName()) &&
-                    f.getSignature().equals(lf.getSignature())) {
+                if (f.getName().equals(lf.getName())) {
+                    if ((f.isPrimitive() || lf.isPrimitive()) &&
+                        f.getTypeCode() != lf.getTypeCode())
+                    {
+                        throw new InvalidClassException(localDesc.name,
+                            "incompatible types for field " + f.getName());
+                    }
                     if (lf.getField() != null) {
                         m = new ObjectStreamField(
                             lf.getField(), lf.isUnshared(), false);

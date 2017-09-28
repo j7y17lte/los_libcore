@@ -25,9 +25,6 @@
 
 package java.io;
 
-import java.nio.ByteOrder;
-import libcore.io.Memory;
-
 /**
  * A data input stream lets an application read primitive Java data
  * types from an underlying input stream in a machine-independent
@@ -312,10 +309,11 @@ class DataInputStream extends FilterInputStream implements DataInput {
      * @see        java.io.FilterInputStream#in
      */
     public final short readShort() throws IOException {
-        // b/30268192
-        // Android-changed: Use read(byte[], int, int) instead of read().
-        readFully(readBuffer, 0, 2);
-        return Memory.peekShort(readBuffer, 0, ByteOrder.BIG_ENDIAN);
+        int ch1 = in.read();
+        int ch2 = in.read();
+        if ((ch1 | ch2) < 0)
+            throw new EOFException();
+        return (short)((ch1 << 8) + (ch2 << 0));
     }
 
     /**
@@ -336,10 +334,11 @@ class DataInputStream extends FilterInputStream implements DataInput {
      * @see        java.io.FilterInputStream#in
      */
     public final int readUnsignedShort() throws IOException {
-        // b/30268192
-        // Android-changed: Use read(byte[], int, int) instead of read().
-        readFully(readBuffer, 0, 2);
-        return Memory.peekShort(readBuffer, 0, ByteOrder.BIG_ENDIAN) & 0xffff;
+        int ch1 = in.read();
+        int ch2 = in.read();
+        if ((ch1 | ch2) < 0)
+            throw new EOFException();
+        return (ch1 << 8) + (ch2 << 0);
     }
 
     /**
@@ -360,10 +359,11 @@ class DataInputStream extends FilterInputStream implements DataInput {
      * @see        java.io.FilterInputStream#in
      */
     public final char readChar() throws IOException {
-        // b/30268192
-        // Android-changed: Use read(byte[], int, int) instead of read().
-        readFully(readBuffer, 0, 2);
-        return (char)Memory.peekShort(readBuffer, 0, ByteOrder.BIG_ENDIAN);
+        int ch1 = in.read();
+        int ch2 = in.read();
+        if ((ch1 | ch2) < 0)
+            throw new EOFException();
+        return (char)((ch1 << 8) + (ch2 << 0));
     }
 
     /**
@@ -384,10 +384,13 @@ class DataInputStream extends FilterInputStream implements DataInput {
      * @see        java.io.FilterInputStream#in
      */
     public final int readInt() throws IOException {
-        // b/30268192
-        // Android-changed: Use read(byte[], int, int) instead of read().
-        readFully(readBuffer, 0, 4);
-        return Memory.peekInt(readBuffer, 0, ByteOrder.BIG_ENDIAN);
+        int ch1 = in.read();
+        int ch2 = in.read();
+        int ch3 = in.read();
+        int ch4 = in.read();
+        if ((ch1 | ch2 | ch3 | ch4) < 0)
+            throw new EOFException();
+        return ((ch1 << 24) + (ch2 << 16) + (ch3 << 8) + (ch4 << 0));
     }
 
     private byte readBuffer[] = new byte[8];

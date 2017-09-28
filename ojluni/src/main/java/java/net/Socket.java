@@ -207,7 +207,9 @@ class Socket implements java.io.Closeable {
     public Socket(String host, int port)
         throws UnknownHostException, IOException
     {
-        this(InetAddress.getAllByName(host), port, (SocketAddress) null, true);
+        this(host != null ? new InetSocketAddress(host, port) :
+             new InetSocketAddress(InetAddress.getByName(null), port),
+             (SocketAddress) null, true);
     }
 
     /**
@@ -238,7 +240,8 @@ class Socket implements java.io.Closeable {
      * @see        SecurityManager#checkConnect
      */
     public Socket(InetAddress address, int port) throws IOException {
-        this(nonNullAddress(address), port, (SocketAddress) null, true);
+        this(address != null ? new InetSocketAddress(address, port) : null,
+             (SocketAddress) null, true);
     }
 
     /**
@@ -276,7 +279,8 @@ class Socket implements java.io.Closeable {
      */
     public Socket(String host, int port, InetAddress localAddr,
                   int localPort) throws IOException {
-        this(InetAddress.getAllByName(host), port,
+        this(host != null ? new InetSocketAddress(host, port) :
+               new InetSocketAddress(InetAddress.getByName(null), port),
              new InetSocketAddress(localAddr, localPort), true);
     }
 
@@ -314,7 +318,7 @@ class Socket implements java.io.Closeable {
      */
     public Socket(InetAddress address, int port, InetAddress localAddr,
                   int localPort) throws IOException {
-        this(nonNullAddress(address), port,
+        this(address != null ? new InetSocketAddress(address, port) : null,
              new InetSocketAddress(localAddr, localPort), true);
     }
 
@@ -360,7 +364,9 @@ class Socket implements java.io.Closeable {
      */
     @Deprecated
     public Socket(String host, int port, boolean stream) throws IOException {
-        this(InetAddress.getAllByName(host), port, (SocketAddress) null, stream);
+        this(host != null ? new InetSocketAddress(host, port) :
+               new InetSocketAddress(InetAddress.getByName(null), port),
+             (SocketAddress) null, stream);
     }
 
     /**
@@ -401,57 +407,32 @@ class Socket implements java.io.Closeable {
      */
     @Deprecated
     public Socket(InetAddress host, int port, boolean stream) throws IOException {
-        this(nonNullAddress(host), port, new InetSocketAddress(0), stream);
+        this(host != null ? new InetSocketAddress(host, port) : null,
+             new InetSocketAddress(0), stream);
     }
 
-    private static InetAddress[] nonNullAddress(InetAddress address) {
+    private Socket(SocketAddress address, SocketAddress localAddr,
+                   boolean stream) throws IOException {
+        setImpl();
+
         // backward compatibility
         if (address == null)
             throw new NullPointerException();
 
-        return new InetAddress[] { address };
-    }
-
-    // Android-changed: Socket ctor should try all addresses
-    // b/30007735
-    private Socket(InetAddress[] addresses, int port, SocketAddress localAddr,
-            boolean stream) throws IOException {
-        if (addresses == null || addresses.length == 0) {
-            throw new SocketException("Impossible: empty address list");
-        }
-
-        for (int i = 0; i < addresses.length; i++) {
-            setImpl();
-            try {
-                InetSocketAddress address = new InetSocketAddress(addresses[i], port);
-                createImpl(stream);
-                if (localAddr != null) {
-                    bind(localAddr);
-                }
+        try {
+            createImpl(stream);
+            if (localAddr != null)
+                bind(localAddr);
+            if (address != null)
                 connect(address);
-                break;
-            } catch (IOException | IllegalArgumentException | SecurityException e) {
-                try {
-                    // Android-changed:
-                    // Do not call #close, classes that extend this class may do not expect a call
-                    // to #close coming from the superclass constructor.
-                    impl.close();
-                    closed = true;
-                } catch (IOException ce) {
-                    e.addSuppressed(ce);
-                }
-
-                // Only stop on the last address.
-                if (i == addresses.length - 1) {
-                    throw e;
-                }
+        } catch (IOException e) {
+            // Do not call #close, classes that extend this class may do not expect a call
+            // to #close coming from the superclass constructor.
+            if (impl != null) {
+                impl.close();
             }
-
-            // Discard the connection state and try again.
-            impl = null;
-            created = false;
-            bound = false;
-            closed = false;
+            closed = true;
+            throw e;
         }
     }
 
@@ -1052,13 +1033,6 @@ class Socket implements java.io.Closeable {
      * @since 1.4
      */
     public void sendUrgentData (int data) throws IOException  {
-        // Android-changed: If the socket is closed, sendUrgentData should not create a new impl.
-        // Fail early to avoid leaking resources.
-        // http://b/31818400
-        if (isClosed()) {
-            throw new SocketException("Socket is closed");
-        }
-
         if (!getImpl().supportsUrgentData ()) {
             throw new SocketException ("Urgent data not supported");
         }
@@ -1382,11 +1356,6 @@ class Socket implements java.io.Closeable {
      * @see #setTrafficClass(int)
      */
     public int getTrafficClass() throws SocketException {
-        // Android-changed: throw SocketException if the socket is already closed. http://b/31818400
-        if (isClosed()) {
-            throw new SocketException("Socket is closed");
-        }
-
         return ((Integer) (getImpl().getOption(SocketOptions.IP_TOS))).intValue();
     }
 

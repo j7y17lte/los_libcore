@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2017, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -518,8 +518,7 @@ public class FtpClient extends sun.net.ftp.FtpClient {
      * @return <code>true</code> if the command was successful
      * @throws IOException
      */
-    private boolean issueCommand(String cmd) throws IOException,
-            sun.net.ftp.FtpProtocolException {
+    private boolean issueCommand(String cmd) throws IOException {
         if (!isConnected()) {
             throw new IllegalStateException("Not connected");
         }
@@ -529,12 +528,6 @@ public class FtpClient extends sun.net.ftp.FtpClient {
             } catch (sun.net.ftp.FtpProtocolException e) {
                 // ignore...
             }
-        }
-        if (cmd.indexOf('\n') != -1) {
-            sun.net.ftp.FtpProtocolException ex
-                    = new sun.net.ftp.FtpProtocolException("Illegal FTP command");
-            ex.initCause(new IllegalArgumentException("Illegal carriage return"));
-            throw ex;
         }
         sendServer(cmd + "\r\n");
         return readReply();
@@ -1128,10 +1121,7 @@ public class FtpClient extends sun.net.ftp.FtpClient {
      */
     public void close() throws IOException {
         if (isConnected()) {
-            try {
-                issueCommand("QUIT");
-            } catch (FtpProtocolException e) {
-            }
+            issueCommand("QUIT");
             loggedIn = false;
         }
         disconnect();
@@ -1909,8 +1899,7 @@ public class FtpClient extends sun.net.ftp.FtpClient {
         return null;
     }
 
-    private boolean sendSecurityData(byte[] buf) throws IOException,
-            sun.net.ftp.FtpProtocolException {
+    private boolean sendSecurityData(byte[] buf) throws IOException {
         BASE64Encoder encoder = new BASE64Encoder();
         String s = encoder.encode(buf);
         return issueCommand("ADAT " + s);
